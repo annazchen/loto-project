@@ -1,0 +1,5 @@
+train: coco8/images/train
+val: coco8/images/val
+
+nc: 1
+names: ['person']
