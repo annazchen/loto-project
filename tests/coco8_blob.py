@@ -1,8 +1,8 @@
-from blobconverter import from_openvino
+import blobconverter
 
-blob_path = from_openvino(xml = "/home/user/Documents/loto-project/runs/detect/train14/weights/best_openvino_model/best.xml",
-                          bin = "/home/user/Documents/loto-project/runs/detect/train14/weights/best_openvino_model/best.bin",
+blob_path = blobconverter.from_onnx(xml = "/home/user/Documents/loto-project/runs/detect/train15/weights/best_openvino_model/best.xml",
+                          bin = "/home/user/Documents/loto-project/runs/detect/train15/weights/best_openvino_model/best.bin",
                           data_type="FP16",
-                          shaves=6)
+                          shaves=10)
 
 print()

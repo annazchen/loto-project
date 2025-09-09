@@ -1,5 +1,5 @@
 #RUN TO CHECK SOCKET CONNECTIVITY AND ENSURE THAT FEED CAN BE VIEWED
-#note this script is for DepthAI V3, V2
+#note this script is for DepthAI V3!!
 #!/usr/bin/env python3
 
 import cv2
