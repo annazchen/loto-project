@@ -1,6 +1,5 @@
 import cv2
 import depthai as dai
-import blobconverter
 import time
 import os 
 
@@ -33,11 +32,35 @@ with dai.Device(pipeline) as device:
             bw = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
             cv2.imshow('oak-1 max, b/w', bw)
         
+        #regular image capture
         cap = cv2.waitKey(1) & 0xFF
         if cap == ord('c'):
-            filename = os.path.join("/home/user/Documents/loto-project/dataset",f"open_{int(time.time())}.jpg")
+            filename = os.path.join("/home/user/Documents/loto-project/dataset/close_lock",f"open_{int(time.time())}.jpg")
             cv2.imwrite(filename, bw)
             print(f"saved {filename}")
+
+        #timed image capture
+        if cap == ord('d'):
+            print("starting timed capture:")
+            t = 3
+            while (t):
+                print(t)
+                time.sleep(1)
+                t -= 1
+            filename = os.path.join("/home/user/Documents/loto-project/dataset/open_lock",f"open_{int(time.time())}.jpg")
+            cv2.imwrite(filename, bw)
+            print(f"saved {filename}")
+        
+        #multishot
+        if (cap == ord('f')):
+            multi = True
+        elif (cap == 255):
+            multi = False
+        if multi:
+            filename = os.path.join("/home/user/Documents/loto-project/dataset/open_lock",f"open_{int(time.time())}.jpg")
+            cv2.imwrite(filename, bw)
+            print(f"saved {filename}")
+            time.sleep(0.5)
 
         
         if cv2.waitKey(1) == ord('q'):
