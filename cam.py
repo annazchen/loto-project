@@ -27,6 +27,7 @@ with dai.Device(pipeline) as device:
     while True:
         in_rgb = q_rgb.tryGet()
 
+        #stream initializer
         if in_rgb is not None:
             rgb = in_rgb.getCvFrame()
             bw = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
@@ -35,7 +36,7 @@ with dai.Device(pipeline) as device:
         #regular image capture
         cap = cv2.waitKey(1) & 0xFF
         if cap == ord('c'):
-            filename = os.path.join("/home/user/Documents/loto-project/dataset/close_lock",f"open_{int(time.time())}.jpg")
+            filename = os.path.join("/home/user/Documents/loto-project/dataset/open_lock",f"open_{int(time.time())}.jpg")
             cv2.imwrite(filename, bw)
             print(f"saved {filename}")
 
