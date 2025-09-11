@@ -36,7 +36,7 @@ with dai.Device(pipeline) as device:
         #regular image capture
         cap = cv2.waitKey(1) & 0xFF
         if cap == ord('c'):
-            filename = os.path.join("/home/user/Documents/loto-project/v1/dataset/close_lock",f"close_{int(time.time())}.jpg")
+            filename = os.path.join("/home/user/Documents/loto-project/v1/dataset/2_lock",f"2_{int(time.time())}.jpg")
             cv2.imwrite(filename, bw)
             print(f"saved {filename}")
 
@@ -48,7 +48,7 @@ with dai.Device(pipeline) as device:
                 print(t)
                 time.sleep(1)
                 t -= 1
-            filename = os.path.join("/home/user/Documents/loto-project/v1/dataset/close_lock",f"close_{int(time.time())}.jpg")
+            filename = os.path.join("/home/user/Documents/loto-project/v1/dataset/2_lock",f"2_{int(time.time())}.jpg")
             cv2.imwrite(filename, bw)
             print(f"saved {filename}")
         
@@ -58,7 +58,7 @@ with dai.Device(pipeline) as device:
         elif (cap == 255):
             multi = False
         if multi:
-            filename = os.path.join("/home/user/Documents/loto-project/v1/dataset/close_lock",f"close_{int(time.time())}.jpg")
+            filename = os.path.join("/home/user/Documents/loto-project/v1/dataset/2_lock",f"2_{int(time.time())}.jpg")
             cv2.imwrite(filename, bw)
             print(f"saved {filename}")
             time.sleep(0.5)
