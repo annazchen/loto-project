@@ -4,3 +4,5 @@ import kagglehub
 path = kagglehub.dataset_download("vencerlanz09/taco-dataset-yolo-format")
 
 print("Path to dataset files:", path)
+
+#LOCATE FILE AND PLACE WITHIN WORKING DIRECTORY, OTHERWISE YAML CANNOT FIND IT

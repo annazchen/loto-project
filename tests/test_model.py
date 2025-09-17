@@ -61,39 +61,6 @@ xout_det.setStreamName("detections")
 cam.preview.link(nn.input)
 nn.out.link(xout_det.input)
 
-
-
-"""with dai.Device(pipeline) as device:
-    q_rgb = device.getOutputQueue("rgb", maxSize = 4, blocking = False)
-    q_det = device.getOutputQueue("detections", maxSize=4, blocking = False)
-
-    t0, n = time.monotonic(), 0
-    print("[INFO] running NN pipeline. Press q to quit")
-
-    while True:
-        in_rgb = q_rgb.tryGet()
-        in_det = q_det.tryGet()
-
-        frame = in_rgb.getCvFrame() if in_rgb is not None else None
-        if in_det is not None:
-            dets = in_det.detections
-
-            #debug
-            for det in dets:
-                print(f"Detecting: {labels[det.label]} ({det.confidence: .2f} )")
-            n += 1 
-        else:
-            dets = []
-        if frame is not None:
-            draw(frame, dets)
-            dt = time.monotonic() - t0
-            if dt > 0:
-                cv2.putText(frame, f"NN fps: {n/dt:.2f}", (6, frame.shape[0] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-            cv2.imshow("oak-1 max - mobilenet-ssd", frame)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break"""
-
 frame_queue = []
 det_queue = []
 
