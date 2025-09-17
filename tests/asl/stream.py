@@ -70,7 +70,11 @@ with dai.Device(pipeline) as device:
         if in_det is not None:
             detections = []
             tensor = in_det.getFirstLayerFp16()
-            num_dets = len(tensor) // 6 #yolov8n tensors have 6 parameters
+            #num_dets = len(tensor) // 6 #yolov8n tensors have 6 parameters (i got lied to)'''
+
+            num_classes = len(labels)
+            spacing = 4 + num_classes
+            num_dets = len(tensor) // spacing
 
             for i in range(num_dets):
                 x, y, w, h, conf, cls = tensor[i * 6: (i + 1)*6]
