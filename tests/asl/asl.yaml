@@ -1,5 +1,5 @@
 #path to dataset root
-path: /home/user/.cache/kagglehub/datasets/grassknoted/asl-alphabet/versions/1
+path: /home/user/Documents/loto-project/tests/asl/1
 
 #train/val/test images directories (relative to path)
 train: train/images
@@ -7,9 +7,9 @@ val: valid/images
 test: test/images
 
 #train/val/test labels directories (relative to path)
-train: train/labels
-val: valid/labels
-test: test/labels
+train_label_dir: train/labels
+val_label_dir: valid/labels
+test_label_dir: test/labels
 
 #number of classes
 nc: 18

@@ -4,7 +4,7 @@ from ultralytics import YOLO
 model = YOLO("yolov8n.pt")
 
 #train
-model.train(data = "asl.yaml", epochs = 50, imgsz = 640, batch = 5)
+model.train(data = "asl.yaml", epochs = 25, imgsz = 640, batch = 16)
 #debug
 dataset = model.trainer.get_dataset()
 
@@ -13,4 +13,4 @@ stats = model.val()
 print(stats)
 
 #export model as openvino
-model.export(format = "openvino", opset=11, simplify=True)
+model.export(format = "onnx", opset=11, simplify=True)
