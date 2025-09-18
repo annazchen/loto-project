@@ -80,7 +80,7 @@ with dai.Device(pipeline) as device:
             #print("[DEBUG] tensor length:", arr.shape)
 
             num_classes = len(labels)
-            preds = np.array(in_det.getFirstLayerFp16()).reshape((4 + num_classes, -1)) #reshape tensor to [22, 8400]
+            preds = np.array(tensor).reshape((4 + num_classes, -1)) #reshape tensor to [22, 8400]
 
             bbox = preds[:4, :]
             score = preds[4:, :]
@@ -88,27 +88,43 @@ with dai.Device(pipeline) as device:
             class_ids = np.argmax(score, axis = 0)
             confidences = np.max(score, axis = 0)
 
+            bboxes = []
+            confs = []
+            classes = []
+
             for i in range(bbox.shape[1]):
                 conf = confidences[i]
                 if conf > 0.5:
                     cls = class_ids[i]
                     x, y, w, h = bbox[:, i]
 
-                    det = type('Detection', (object,), {})()
-                    det.xmin = (x - w/2) / nn_size
-                    det.ymin = (y - h/2) / nn_size 
-                    det.xmax = (x + w/2) / nn_size
-                    det.ymax = (y + h/2) / nn_size
-                    det.confidence = float(conf)
-                    det.label = int(cls)
-                    detections.append(det)
+                    xmin = int((x - w/2))
+                    ymin = int((y - h/2))
+                    xmax = int((x + w/2))
+                    ymax = int((y + h/2))
+
+                    bboxes.append([xmin, ymin, xmax - xmin, ymax - ymin])
+                    confs.append(float(conf))
+                    classes.append(int(cls))
+
+            indices = cv2.dnn.NMSBoxes(bboxes, confs, score_threshold = 0.5, nms_threshold = 0.4)
+
+            for i in np.array(indices).flatten():
+                det = type('detection', (object,), {})()
+                det.xmin = bboxes[i][0] / nn_size
+                det.ymin = bboxes[i][1] / nn_size
+                det.xmax = (bboxes[i][0] + bboxes[i][2]) / nn_size
+                det.ymax = (bboxes[i][1] + bboxes[i][3]) / nn_size
+                det.confidence = confs[i]
+                det.label = classes[i]
+                detections.append(det)
+
+
             latest_detects = detections
             det_queue.append((in_det.getTimestamp(), detections))
             
             #debug: ensure detections are detecting
             print(f"[DEBUG] got {len(detections)} detections")
-
-        
 
             for d in detections:
                 print(f" - {labels[d.label]} ({d.confidence:.2f}) "
@@ -131,7 +147,7 @@ with dai.Device(pipeline) as device:
                 closest_det = min(det_queue, key=lambda x: abs(x[0] - f_ts))
                 detections_to_draw = closest_det[1]
             else:
-                # fallback: use last known detections
+                #if cannot find, use last known detection
                 detections_to_draw = latest_detects
 
             if detections:
