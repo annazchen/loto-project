@@ -1,6 +1,7 @@
 import depthai as dai
 import cv2
 import time
+import numpy as np
 
 blob_path = "/home/user/.cache/blobconverter/best_openvino_2022.1_10shave.blob"
 
@@ -55,6 +56,9 @@ def draw(frame, detections):
 
 frame_queue = []
 det_queue = []
+latest_detects = []
+detections = []
+max_q = 8
 
 with dai.Device(pipeline) as device:
     q_rgb = device.getOutputQueue("rgb", maxSize=4, blocking=False)
@@ -69,49 +73,76 @@ with dai.Device(pipeline) as device:
 
         if in_det is not None:
             detections = []
-            tensor = in_det.getFirstLayerFp16()
-            #num_dets = len(tensor) // 6 #yolov8n tensors have 6 parameters (i got lied to)'''
+            tensor = in_det.getFirstLayerFp16() #tensor shape: [1 (batch dimension), 4 (for x,y,w,h) + # of classes , 8400]
+
+            #debug: confirm tensor size assumptions are correct 
+            #arr = np.array(in_det.getFirstLayerFp16())
+            #print("[DEBUG] tensor length:", arr.shape)
 
             num_classes = len(labels)
-            spacing = 4 + num_classes
-            num_dets = len(tensor) // spacing
+            preds = np.array(in_det.getFirstLayerFp16()).reshape((4 + num_classes, -1)) #reshape tensor to [22, 8400]
 
-            for i in range(num_dets):
-                x, y, w, h, conf, cls = tensor[i * 6: (i + 1)*6]
+            bbox = preds[:4, :]
+            score = preds[4:, :]
+
+            class_ids = np.argmax(score, axis = 0)
+            confidences = np.max(score, axis = 0)
+
+            for i in range(bbox.shape[1]):
+                conf = confidences[i]
                 if conf > 0.5:
+                    cls = class_ids[i]
+                    x, y, w, h = bbox[:, i]
+
                     det = type('Detection', (object,), {})()
-                    det.xmin = x - w/2
-                    det.ymin = y - h/2
-                    det.xmax = x + w/2
-                    det.ymax = y + h/2
-                    det.confidence = conf
+                    det.xmin = (x - w/2) / nn_size
+                    det.ymin = (y - h/2) / nn_size 
+                    det.xmax = (x + w/2) / nn_size
+                    det.ymax = (y + h/2) / nn_size
+                    det.confidence = float(conf)
                     det.label = int(cls)
                     detections.append(det)
+            latest_detects = detections
             det_queue.append((in_det.getTimestamp(), detections))
+            
+            #debug: ensure detections are detecting
+            print(f"[DEBUG] got {len(detections)} detections")
+
+        
+
+            for d in detections:
+                print(f" - {labels[d.label]} ({d.confidence:.2f}) "
+                    f"at [{d.xmin:.2f}, {d.ymin:.2f}, {d.xmax:.2f}, {d.ymax:.2f}]")
+            if len(det_queue) > max_q:
+                det_queue.pop(0)
 
         if in_rgb is not None:
-            #tracking frame timestamp and frame
+            #getting frame timestamp and frame
             frame_queue.append((in_rgb.getTimestamp(), in_rgb.getCvFrame()))
+            if len(frame_queue) > max_q:
+                frame_queue.pop(0)
         
         #match latest detection to closest frame
-        if frame_queue and det_queue:
+        if frame_queue:
             f_ts, frame = frame_queue.pop(0)
 
-            #finding closest detection based on time
-            closest_det = min(det_queue, key=lambda x: abs(x[0]-f_ts))
-            detections = closest_det[1]
+            if det_queue:
+                # find closest detection timestamp
+                closest_det = min(det_queue, key=lambda x: abs(x[0] - f_ts))
+                detections_to_draw = closest_det[1]
+            else:
+                # fallback: use last known detections
+                detections_to_draw = latest_detects
 
-            draw(frame, detections)
-            cv2.imshow("oak-1 max - TACO dataset, YOLOV8n", frame)
+            if detections:
+                d = detections[0]
+                print(f"[DEBUG] box: {d.xmin:.2f}, {d.ymin:.2f}, {d.xmax:.2f}, {d.ymax:.2f}")
+
+
+            draw(frame, detections_to_draw)
+            cv2.imshow("OAK-1 Max - YOLOv8n", frame)
 
         if cv2.waitKey(1) == ord('q'):
             break
 
 cv2.destroyAllWindows()
-
-        
-
-
-            
-
-
