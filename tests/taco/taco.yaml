@@ -1,5 +1,5 @@
 #path to dataset root
-path: /home/user/Documents/loto-project/tests/asl/1
+path: /home/user/Documents/loto-project/tests/taco/1
 
 #train/val/test images directories (relative to path)
 train: train/images
