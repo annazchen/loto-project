@@ -1,0 +1,17 @@
+#path to dataset root
+path: /home/user/Documents/loto-project/v1/loto_people_data
+
+#train/val/test images directories (relative to path)
+train: images/Train
+val: images/Validation
+test: images/Test
+
+#train/val/test labels directories (relative to path)
+train_label_dir: labels/Train
+val_label_dir: labels/Validation
+test_label_dir: labels/Test
+
+#number of classes
+nc: 1
+#classes
+names: ['person']
