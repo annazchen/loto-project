@@ -2,7 +2,9 @@ import time
 import threading
 import numpy as np
 import cv2
- 
+
+
+#ademar's stuff
 try:
     import depthai as dai
 except Exception as e:
