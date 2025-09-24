@@ -1,2 +1,5 @@
 depthai-python
 tests/taco/1
+tests/taco/runs/detect
+v1/dataset
+v1/loto_people_data
