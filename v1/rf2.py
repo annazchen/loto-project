@@ -70,7 +70,7 @@ def handle_detection(epc_bytes : bytes):
     epc_hex = bytes_to_hex(epc_bytes)
     detection_counts[epc_hex] = detection_counts.get(epc_hex, 0) + 1
 
-    if detection_counts[epc_hex] >= 3:
+    if detection_counts[epc_hex] >= 10:
         detection_counts[epc_hex] = 0
         read_counts[epc_hex] = read_counts.get(epc_hex, 0) + 1
         read_num = read_counts[epc_hex]
@@ -104,7 +104,8 @@ def read_table():
 #def multi_handler(response : bytes):
 
 #fetch current number of people inside 
-def get_curr_in():
+def get_curr_in_len():
+    global curr_in
     return len(curr_in)
 
 
@@ -130,9 +131,10 @@ def read_loop(ser : serial.Serial):
                     #print(epc) 
             if (time.time() - time0) >= 5:
                 print(f"number of people inside: {num_person}") 
-                print(f"number of tags detected inside: {len(curr_in)}")
-                if num_person != len(curr_in):
-                    print("⚠️loto violation!⚠️")
+                print(f"number of tags tapped in: {len(curr_in)}")
+                #for funsies
+                #if num_person > len(curr_in):
+                #    print("⚠️ loto violation!⚠️")
                 time0 = time.time()
 
 
@@ -140,7 +142,7 @@ def read_loop(ser : serial.Serial):
             time.sleep(0.1)
 
     except KeyboardInterrupt:
-        print("\nstopping reader... (ctrl + c)")
+        print("stopping reader... (ctrl + c)")
     finally:
         try:
             ser.close()

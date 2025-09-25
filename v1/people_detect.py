@@ -9,7 +9,7 @@ blob_path = r"\Users\Anna.Chen\.cache\blobconverter\best_openvino_2022.1_10shave
 #neural network input size
 nn_size = 640
 
-fps = 30
+fps = 10
 
 labels = ['person']
 num_classes = len(labels)
@@ -26,7 +26,6 @@ max_q = 8
 
 #default focus
 focus = 120
-
 
 #initialize pipeline
 def cam_intialize(pipeline : dai.Pipeline, fps : int):
@@ -86,7 +85,7 @@ def get_frames(frames : dai.DataOutputQueue):
     return frames.tryGet()
 
 #get number of detections
-def num_detects(detects : list):
+def get_detects(detects : list):
     return len(detects)
 
 #draw bounding boxes
@@ -142,10 +141,10 @@ def main():
             in_video = get_frames(q_video)
 
 
-
+            #WIP, WILL BECOME A FUNCTION IN THE FUTURE
             if in_det is not None:
                 #refresh detections
-                detections = []
+                detections.clear()
 
                 #--- tensor config --- 
                 tensor = in_det.getFirstLayerFp16() #tensor shape: [1 (batch dimension), 4 (for x,y,w,h) + # of classes , 8400]
