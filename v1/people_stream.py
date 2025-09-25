@@ -157,7 +157,7 @@ with dai.Device(pipeline) as device:
                 det_queue.pop(0)
 
         if in_video is not None:
-            #getting frame timestamp and frame
+            #getting timestamp and frame
             frame_queue.append((in_video.getTimestamp(), in_video.getCvFrame()))
             if len(frame_queue) > max_q:
                 frame_queue.pop(0)
