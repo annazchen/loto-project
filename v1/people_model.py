@@ -4,7 +4,7 @@ from ultralytics import YOLO
 model = YOLO("yolov8n.pt")
 
 #train
-model.train(data = "people.yaml", epochs = 150, imgsz = 640, batch = 16)
+model.train(data = "people.yaml", epochs = 200, imgsz = 640, batch = 12)
 #debug
 dataset = model.trainer.get_dataset()
 
