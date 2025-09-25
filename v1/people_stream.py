@@ -2,15 +2,17 @@ import depthai as dai
 import cv2
 import time
 import numpy as np
+import os
 
-blob_path = "/home/user/.cache/blobconverter/best_openvino_2022.1_10shave.blob"
+blob_path = r"\Users\Anna.Chen\.cache\blobconverter\best_openvino_2022.1_10shave.blob"
 
 #start pipeline
 pipeline = dai.Pipeline()
 
 #cam specs
 cam = pipeline.createColorCamera()
-cam.setResolution(dai.ColorCameraProperties.SensorResolution.THE_4_K)
+cam.setResolution(dai.ColorCameraProperties.SensorResolution.THE_12_MP)
+cam.setIspScale(1, 3)
 cam.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
 cam.setInterleaved(False)
 cam.setFps(30)
@@ -24,20 +26,31 @@ nn.setBlobPath(blob_path)
 nn.input.setBlocking(False)
 nn.input.setQueueSize(1)
 
+#manual focus node
+lens_ctrl = pipeline.create(dai.node.XLinkIn)
+lens_ctrl.setStreamName('control')
+lens_ctrl.out.link(cam.inputControl)
+
 #outputs
+
+#preview
 xout_rgb = pipeline.create(dai.node.XLinkOut)
 xout_rgb.setStreamName("rgb")
 cam.preview.link(xout_rgb.input)
 
+#detections from nn
 xout_det = pipeline.create(dai.node.XLinkOut)
 xout_det.setStreamName("detections")
 
 cam.preview.link(nn.input)
 nn.out.link(xout_det.input)
 
-labels = ['Aluminium foil', 'Bottle cap', 'Bottle', 'Broken glass', 'Can', 'Carton', 
-          'Cigarette', 'Cup', 'Lid', 'Other litter', 'Other plastic', 'Paper', 'Plastic bag - wrapper',
-          'Plastic container', 'Pop tab', 'Straw', 'Styrofoam piece', 'Unlabeled litter']
+#full res video
+xout_video = pipeline.createXLinkOut()
+xout_video.setStreamName("video")
+cam.video.link(xout_video.input)
+
+labels = ['person']
 
 
 #draw bounding boxes
@@ -63,6 +76,16 @@ max_q = 8
 with dai.Device(pipeline) as device:
     q_rgb = device.getOutputQueue("rgb", maxSize=4, blocking=False)
     q_det = device.getOutputQueue("detections", maxSize=4, blocking=False)
+    q_video = device.getOutputQueue("video")
+
+    ctrlQueue = device.getInputQueue('control')
+
+    #set default focus = 120
+    focus = 120 
+    print(f"starting manual focus at {focus}")
+    ctrl = dai.CameraControl()
+    ctrl.setManualFocus(focus)
+    ctrlQueue.send(ctrl)
 
     t0, n = time.monotonic(), 0
     print("[INFO] running NN pipeline. Press q to quit")
@@ -70,6 +93,7 @@ with dai.Device(pipeline) as device:
     while True:
         in_rgb = q_rgb.tryGet()
         in_det = q_det.tryGet()
+        in_video = q_video.tryGet()
 
         if in_det is not None:
             detections = []
@@ -132,9 +156,9 @@ with dai.Device(pipeline) as device:
             if len(det_queue) > max_q:
                 det_queue.pop(0)
 
-        if in_rgb is not None:
+        if in_video is not None:
             #getting frame timestamp and frame
-            frame_queue.append((in_rgb.getTimestamp(), in_rgb.getCvFrame()))
+            frame_queue.append((in_video.getTimestamp(), in_video.getCvFrame()))
             if len(frame_queue) > max_q:
                 frame_queue.pop(0)
         
@@ -158,7 +182,23 @@ with dai.Device(pipeline) as device:
             draw(frame, detections_to_draw)
             cv2.imshow("OAK-1 Max - YOLOv8n", frame)
 
-        if cv2.waitKey(1) == ord('q'):
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
             break
+        elif key == ord('w'):
+            focus = max(0, focus - 5)
+            print(f"[INFO] focus -> {focus}")
+            ctrl.setManualFocus(focus)
+            ctrlQueue.send(ctrl)
+        elif key == ord('s'):
+            focus = min(255, focus + 5)
+            print(f"[INFO] focus -> {focus}")
+            ctrl.setManualFocus(focus)
+            ctrlQueue.send(ctrl)
+        elif key == ord('c'):
+            filename = os.path.join(r"\Users\Anna.Chen\loto-2\data",f"person_{int(time.time())}.jpg")
+            cv2.imwrite(filename, frame)
+            print(f"saved {filename}")
+
 
 cv2.destroyAllWindows()
