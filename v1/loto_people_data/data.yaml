@@ -1,6 +1,0 @@
-Test: Test.txt
-Train: Train.txt
-Validation: Validation.txt
-names:
-  0: person
-path: .
