@@ -74,9 +74,9 @@ detections = []
 max_q = 8
 
 with dai.Device(pipeline) as device:
-    q_rgb = device.getOutputQueue("rgb", maxSize=4, blocking=False)
-    q_det = device.getOutputQueue("detections", maxSize=4, blocking=False)
-    q_video = device.getOutputQueue("video")
+    q_rgb = device.getOutputQueue("rgb", maxSize = 4, blocking = False)
+    q_det = device.getOutputQueue("detections", maxSize = 4, blocking = False)
+    q_video = device.getOutputQueue("video", maxSize = 4, blocking = False)
 
     ctrlQueue = device.getInputQueue('control')
 

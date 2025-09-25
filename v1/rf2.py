@@ -103,6 +103,10 @@ def read_table():
 #multi epc handler
 #def multi_handler(response : bytes):
 
+#fetch current number of people inside 
+def get_curr_in():
+    return len(curr_in)
+
 
 def read_loop(ser : serial.Serial):
     print(f"Listening on {ser.port} @ {ser.baudrate} baud. Press Ctrl+C to stop. Press p to read log table.")
