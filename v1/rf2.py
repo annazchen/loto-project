@@ -4,6 +4,8 @@ from serial.tools import list_ports
 import argparse
 import sys
 import keyboard
+import people_detect
+import threading
 
 #command to be sent to read epc values
 SEND_CMD = bytes.fromhex("BB 00 22 00 00 22 7E")
@@ -130,14 +132,12 @@ def read_loop(ser : serial.Serial):
                     #debug
                     #print(epc) 
             if (time.time() - time0) >= 5:
-                print(f"number of people inside: {num_person}") 
+                print(f"number of people inside: {len(people_detect.detections)}") 
                 print(f"number of tags tapped in: {len(curr_in)}")
                 #for funsies
                 #if num_person > len(curr_in):
                 #    print("⚠️ loto violation!⚠️")
                 time0 = time.time()
-
-
 
             time.sleep(0.1)
 
@@ -151,45 +151,51 @@ def read_loop(ser : serial.Serial):
 
 
 
-def main():
-    #adding hotkey 'p' to print log
-    keyboard.add_hotkey('p', lambda: read_table())
+def main(stop_event = None):
+    while not(stop_event and stop_event.is_set()):
 
-    #add terminal arguments (port, baudrate, timeout, list of serial ports)
-    parser = argparse.ArgumentParser(description = "RFID reader")
-    parser.add_argument("--port", "-p", help = "serial port (e.g. COM3 or /dev/ttyUSB0). if omitted you will be prompted.")
-    parser.add_argument("--baud", "-b", type = int, default=115200, help="baud rate (default: 115200)")
-    parser.add_argument("--timeout", "-t", type = float, default=0.5, help="Serial read timeout seconds")
-    parser.add_argument("--list", action = "store_true", help="List serial ports and exit")
-    args = parser.parse_args()
+        #adding hotkey 'p' to print log
+        keyboard.add_hotkey('p', lambda: read_table())
 
-    #detect port
-    if args.list:
-        ports = detect_ports()
-        if not ports:
-            print("no ports found.")
-        else:
-            print("serial ports: ")
-            for dev, desc in ports:
-                print(f" - {dev}: {desc}")
-        sys.exit(0)
-        
-    #select port    
-    port = args.port
-    if not port:
-        port = select_port()
+        #add terminal arguments (port, baudrate, timeout, list of serial ports)
+        parser = argparse.ArgumentParser(description = "RFID reader")
+        parser.add_argument("--port", "-p", help = "serial port (e.g. COM3 or /dev/ttyUSB0). if omitted you will be prompted.")
+        parser.add_argument("--baud", "-b", type = int, default=115200, help="baud rate (default: 115200)")
+        parser.add_argument("--timeout", "-t", type = float, default=0.5, help="Serial read timeout seconds")
+        parser.add_argument("--list", action = "store_true", help="List serial ports and exit")
+        args = parser.parse_args()
+
+        #detect port
+        if args.list:
+            ports = detect_ports()
+            if not ports:
+                print("no ports found.")
+            else:
+                print("serial ports: ")
+                for dev, desc in ports:
+                    print(f" - {dev}: {desc}")
+            sys.exit(0)
+            
+        #select port    
+        port = args.port
         if not port:
-            print("no port selected, exiting")
+            port = select_port()
+            if not port:
+                print("no port selected, exiting")
+                return
+        
+        #open serial
+        try:
+            ser = open_serial(port, args.baud, timeout = args.timeout)
+        except Exception as e:
+            print(f"failed to open serial port {port} at {args.baud} baud: {e}")
             return
-    
-    #open serial
-    try:
-        ser = open_serial(port, args.baud, timeout = args.timeout)
-    except Exception as e:
-        print(f"failed to open serial port {port} at {args.baud} baud: {e}")
-        return
 
-    read_loop(ser)
+        read_loop(ser)
+        time.sleep(0.1)
+    print('exiting rf2...')
+    
+
 
 
 if __name__ == "__main__":

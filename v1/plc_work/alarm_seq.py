@@ -57,10 +57,15 @@ def main():
             teach_mode = read_single(plc, TAG_TEACH_MODE)
 
             num_dets = len(detections)
+            #debug
+            print(f"number of detections: {num_dets}")
             num_ids = len(curr_in)
+            #debug
+            print(f"number of ids: {num_ids}")
 
             alarm = loto_logic(gate_open, teach_mode, num_dets, num_ids)
             write_single(plc, TAG_LOTO_ALARM, alarm)
+            print(f"loto alarm written⚠️")
 
             time.sleep(0.1)
 

@@ -6,10 +6,12 @@ import os
 
 blob_path = r"\Users\Anna.Chen\.cache\blobconverter\best_openvino_2022.1_10shave.blob"
 
+num_detects = 0
+
 #neural network input size
 nn_size = 640
 
-fps = 10
+fps = 5
 
 labels = ['person']
 num_classes = len(labels)
@@ -26,6 +28,14 @@ max_q = 8
 
 #default focus
 focus = 120
+
+#get length of detections list
+def get_detections_count():
+    global detections
+    global num_detects
+    num_detects = len(detections)
+    return num_detects
+    
 
 #initialize pipeline
 def cam_intialize(pipeline : dai.Pipeline, fps : int):
@@ -102,155 +112,157 @@ def draw(frame, detections):
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cv2.putText(frame,f"{labels[lbl] if isinstance(lbl, int) else lbl} {conf}%", (x1 + 5, max(y1-6, 12)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
+def main(stop_event = None):
+    while not(stop_event and stop_event.is_set()):
+            
+        global focus
+        global latest_detects
+        global detections
+
+        #starting pipeline
+        pipeline = dai.Pipeline()
+        cam = cam_intialize(pipeline, fps)
+        nn = create_nn(pipeline, cam, blob_path, nn_size)
+        lens_ctrl = manual(pipeline, cam)
+
+        #initializing outputs
+        xout_rgb = output(pipeline, cam, "rgb")
+        xout_det = output_nn(pipeline, cam, nn)
+        xout_video = output(pipeline, cam, "video")
+
+        with dai.Device(pipeline) as device:
+            q_rgb = out_q(device, "rgb")
+            q_det = out_q(device, "detections")
+            q_video = out_q(device,"video")
+
+            q_ctrl = in_q(device, "control")
+
+            #starting manual focus control
+            ctrl = dai.CameraControl()
+            ctrl.setManualFocus(focus)
+            q_ctrl.send(ctrl)
+
+            t0, n = time.monotonic(), 0
+            print("[INFO] running NN pipeline. Press q to quit")
+
+            while True:
+                in_rgb = get_frames(q_rgb)
+                in_det = get_frames(q_det)
+                in_video = get_frames(q_video)
 
 
-def main():
-    global focus
-    global latest_detects
-    global detections
+                #WIP, WILL BECOME A FUNCTION IN THE FUTURE
+                if in_det is not None:
+                    #refresh detections
+                    detections.clear()
 
-    #starting pipeline
-    pipeline = dai.Pipeline()
-    cam = cam_intialize(pipeline, fps)
-    nn = create_nn(pipeline, cam, blob_path, nn_size)
-    lens_ctrl = manual(pipeline, cam)
+                    #--- tensor config --- 
+                    tensor = in_det.getFirstLayerFp16() #tensor shape: [1 (batch dimension), 4 (for x,y,w,h) + # of classes , 8400]
 
-    #initializing outputs
-    xout_rgb = output(pipeline, cam, "rgb")
-    xout_det = output_nn(pipeline, cam, nn)
-    xout_video = output(pipeline, cam, "video")
+                    #debug: confirm tensor size assumptions are correct 
+                    #arr = np.array(in_det.getFirstLayerFp16())
+                    #print("[DEBUG] tensor length:", arr.shape)
 
-    with dai.Device(pipeline) as device:
-        q_rgb = out_q(device, "rgb")
-        q_det = out_q(device, "detections")
-        q_video = out_q(device,"video")
+                    num_classes = len(labels)
+                    preds = np.array(tensor).reshape((4 + num_classes, -1)) #reshape tensor to [22, 8400]
 
-        q_ctrl = in_q(device, "control")
+                    bbox = preds[:4, :]
+                    score = preds[4:, :]
 
-        #starting manual focus control
-        ctrl = dai.CameraControl()
-        ctrl.setManualFocus(focus)
-        q_ctrl.send(ctrl)
+                    class_ids = np.argmax(score, axis = 0)
+                    confidences = np.max(score, axis = 0)
 
-        t0, n = time.monotonic(), 0
-        print("[INFO] running NN pipeline. Press q to quit")
+                    bboxes = []
+                    confs = []
+                    classes = []
 
-        while True:
-            in_rgb = get_frames(q_rgb)
-            in_det = get_frames(q_det)
-            in_video = get_frames(q_video)
+                    for i in range(bbox.shape[1]):
+                        conf = confidences[i]
+                        if conf > 0.5:
+                            cls = class_ids[i]
+                            x, y, w, h = bbox[:, i]
 
+                            xmin = int((x - w/2))
+                            ymin = int((y - h/2))
+                            xmax = int((x + w/2))
+                            ymax = int((y + h/2))
 
-            #WIP, WILL BECOME A FUNCTION IN THE FUTURE
-            if in_det is not None:
-                #refresh detections
-                detections.clear()
+                            bboxes.append([xmin, ymin, xmax - xmin, ymax - ymin])
+                            confs.append(float(conf))
+                            classes.append(int(cls))
 
-                #--- tensor config --- 
-                tensor = in_det.getFirstLayerFp16() #tensor shape: [1 (batch dimension), 4 (for x,y,w,h) + # of classes , 8400]
+                    indices = cv2.dnn.NMSBoxes(bboxes, confs, score_threshold = 0.5, nms_threshold = 0.4)
 
-                #debug: confirm tensor size assumptions are correct 
-                #arr = np.array(in_det.getFirstLayerFp16())
-                #print("[DEBUG] tensor length:", arr.shape)
+                    for i in np.array(indices).flatten():
+                        det = type('detection', (object,), {})()
+                        det.xmin = bboxes[i][0] / nn_size
+                        det.ymin = bboxes[i][1] / nn_size
+                        det.xmax = (bboxes[i][0] + bboxes[i][2]) / nn_size
+                        det.ymax = (bboxes[i][1] + bboxes[i][3]) / nn_size
+                        det.confidence = confs[i]
+                        det.label = classes[i]
+                        detections.append(det)
+                    
+                    latest_detects = detections
+                    det_queue.append((in_det.getTimestamp(), detections))
+                    #debug: ensure detections are detecting
+                    #print(f"[DEBUG] got {len(detections)} detections")
 
-                num_classes = len(labels)
-                preds = np.array(tensor).reshape((4 + num_classes, -1)) #reshape tensor to [22, 8400]
+                    for d in detections:
+                        print(f" - {labels[d.label]} ({d.confidence:.2f}) "
+                            f"at [{d.xmin:.2f}, {d.ymin:.2f}, {d.xmax:.2f}, {d.ymax:.2f}]")
+                    #remove oldest detection frame    
+                    if len(det_queue) > max_q:
+                        det_queue.pop(0)
 
-                bbox = preds[:4, :]
-                score = preds[4:, :]
+                if in_video is not None:
+                    #getting timestamp and frame
+                    frame_queue.append((in_video.getTimestamp(), in_video.getCvFrame()))
+                    if len(frame_queue) > max_q:
+                        frame_queue.pop(0)
 
-                class_ids = np.argmax(score, axis = 0)
-                confidences = np.max(score, axis = 0)
+                #match latest detection to closest frame
+                if frame_queue:
+                    f_ts, frame = frame_queue.pop(0)
 
-                bboxes = []
-                confs = []
-                classes = []
+                    if det_queue:
+                        # find closest detection timestamp
+                        closest_det = min(det_queue, key=lambda x: abs(x[0] - f_ts))
+                        detections_to_draw = closest_det[1]
+                    else:
+                        #if cannot find, use last known detection
+                        detections_to_draw = latest_detects
 
-                for i in range(bbox.shape[1]):
-                    conf = confidences[i]
-                    if conf > 0.5:
-                        cls = class_ids[i]
-                        x, y, w, h = bbox[:, i]
+                    if detections:
+                        d = detections[0]
+                        #print(f"[DEBUG] number of detections: {len(detections)}")
+                        #print(f"[DEBUG] box: {d.xmin:.2f}, {d.ymin:.2f}, {d.xmax:.2f}, {d.ymax:.2f}")
 
-                        xmin = int((x - w/2))
-                        ymin = int((y - h/2))
-                        xmax = int((x + w/2))
-                        ymax = int((y + h/2))
+                    draw(frame, detections_to_draw)
+                    cv2.imshow("OAK-1 Max - YOLOv8n", frame)
 
-                        bboxes.append([xmin, ymin, xmax - xmin, ymax - ymin])
-                        confs.append(float(conf))
-                        classes.append(int(cls))
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
+                elif key == ord('w'):
+                    focus = max(0, focus - 5)
+                    print(f"[INFO] focus -> {focus}")
+                    ctrl.setManualFocus(focus)
+                    q_ctrl.send(ctrl)
+                elif key == ord('s'):
+                    focus = min(255, focus + 5)
+                    print(f"[INFO] focus -> {focus}")
+                    ctrl.setManualFocus(focus)
+                    q_ctrl.send(ctrl)
+                #press c to take snapshot
+                elif key == ord('c'):
+                    filename = os.path.join(r"\Users\Anna.Chen\loto-2\data",f"person_{int(time.time())}.jpg")
+                    cv2.imwrite(filename, frame)
+                    print(f"saved {filename}")
 
-                indices = cv2.dnn.NMSBoxes(bboxes, confs, score_threshold = 0.5, nms_threshold = 0.4)
-
-                for i in np.array(indices).flatten():
-                    det = type('detection', (object,), {})()
-                    det.xmin = bboxes[i][0] / nn_size
-                    det.ymin = bboxes[i][1] / nn_size
-                    det.xmax = (bboxes[i][0] + bboxes[i][2]) / nn_size
-                    det.ymax = (bboxes[i][1] + bboxes[i][3]) / nn_size
-                    det.confidence = confs[i]
-                    det.label = classes[i]
-                    detections.append(det)
-                
-                latest_detects = detections
-                det_queue.append((in_det.getTimestamp(), detections))
-                #debug: ensure detections are detecting
-                print(f"[DEBUG] got {len(detections)} detections")
-
-                for d in detections:
-                    print(f" - {labels[d.label]} ({d.confidence:.2f}) "
-                        f"at [{d.xmin:.2f}, {d.ymin:.2f}, {d.xmax:.2f}, {d.ymax:.2f}]")
-                #remove oldest detection frame    
-                if len(det_queue) > max_q:
-                    det_queue.pop(0)
-
-            if in_video is not None:
-                #getting timestamp and frame
-                frame_queue.append((in_video.getTimestamp(), in_video.getCvFrame()))
-                if len(frame_queue) > max_q:
-                    frame_queue.pop(0)
-
-            #match latest detection to closest frame
-            if frame_queue:
-                f_ts, frame = frame_queue.pop(0)
-
-                if det_queue:
-                    # find closest detection timestamp
-                    closest_det = min(det_queue, key=lambda x: abs(x[0] - f_ts))
-                    detections_to_draw = closest_det[1]
-                else:
-                    #if cannot find, use last known detection
-                    detections_to_draw = latest_detects
-
-                if detections:
-                    d = detections[0]
-                    print(f"[DEBUG] box: {d.xmin:.2f}, {d.ymin:.2f}, {d.xmax:.2f}, {d.ymax:.2f}")
-
-                draw(frame, detections_to_draw)
-                cv2.imshow("OAK-1 Max - YOLOv8n", frame)
-
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                break
-            elif key == ord('w'):
-                focus = max(0, focus - 5)
-                print(f"[INFO] focus -> {focus}")
-                ctrl.setManualFocus(focus)
-                q_ctrl.send(ctrl)
-            elif key == ord('s'):
-                focus = min(255, focus + 5)
-                print(f"[INFO] focus -> {focus}")
-                ctrl.setManualFocus(focus)
-                q_ctrl.send(ctrl)
-            #press c to take snapshot
-            elif key == ord('c'):
-                filename = os.path.join(r"\Users\Anna.Chen\loto-2\data",f"person_{int(time.time())}.jpg")
-                cv2.imwrite(filename, frame)
-                print(f"saved {filename}")
-
-
-    cv2.destroyAllWindows()
+        cv2.destroyAllWindows()
+        time.sleep(0.1)
+    print("exiting people_detect...")    
 if __name__ == "__main__":
     main()
     
