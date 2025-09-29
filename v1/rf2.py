@@ -90,11 +90,15 @@ def handle_detection(epc_bytes : bytes):
         if epc_hex in curr_in:
             update_curr_in()
 
-
+#last working on this!
 def update_curr_in():
     t0 = time.time()
     expired = [epc for epc, timestamp in last_seen.items() if t0 - timestamp ]
     for epc in expired:
+        log_table.append({
+            "epc" : epc, 
+
+        })
         last_seen.pop(epc, None)
     global curr_in
     curr_in = list(last_seen.keys())
