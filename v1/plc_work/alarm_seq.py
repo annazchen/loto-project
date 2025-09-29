@@ -3,6 +3,7 @@ from .ip import PLC_IP
 from rf2 import curr_in
 from people_detect import get_detections_count
 import time
+import keyboard
 
 plc_fail = 0
 num_alarms = 0
@@ -54,8 +55,11 @@ def loto_logic(gate_open, teach_mode, num_dets, num_ids):
     
 
 def main(stop_event = None):
-    with LogixDriver(PLC_IP) as plc:
-        while not(stop_event and stop_event.is_set()):
+    while not(stop_event and stop_event.is_set()):
+        with LogixDriver(PLC_IP) as plc:
+        
+            t0 = time.time()
+
             while True:
                 gate_open = read_single(plc, TAG_GATE_OPEN)
                 teach_mode = read_single(plc, TAG_TEACH_MODE)
@@ -67,20 +71,24 @@ def main(stop_event = None):
                 #print(f"number of detections: {num_dets}")
                 #print(f"number of ids: {num_ids}")
 
+                if keyboard.is_pressed("ctrl + d"):
+                    num_dets = int(input("[DEBUG] how many dets?: "))
+                    num_ids = int(input("[DEBUG] how many ids?: "))
+                    
                 alarm = loto_logic(gate_open, teach_mode, num_dets, num_ids)
                 #time.sleep(3)  
                 #print(f"alarm: {alarm}")
             
                 if alarm:
-                    num_alarms += 1
-                    if num_alarms >= 3:  
-                        write_single(plc, TAG_LOTO_ALARM, alarm)
-                        num_alarms = 0
-                        print(f"loto alarm written⚠️")
-                        time.sleep(2)
+                    #num_alarms += 1
+                    #if num_alarms >= 3:  
+                    write_single(plc, TAG_LOTO_ALARM, alarm)
+                    num_alarms = 0
+                    print(f"loto alarm written⚠️")
+                    time.sleep(2)
 
                 time.sleep(0.1)
-            time.sleep(0.1)
+
 
 if __name__ == "__main__":
     main()  
