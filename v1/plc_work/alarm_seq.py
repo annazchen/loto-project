@@ -55,13 +55,10 @@ def loto_logic(gate_open, teach_mode, num_dets, num_ids):
     
 
 def main(stop_event = None):
-    while not(stop_event and stop_event.is_set()):
-        with LogixDriver(PLC_IP) as plc:
-        
-            t0 = time.time()
-
-            while True:
-                gate_open = read_single(plc, TAG_GATE_OPEN)
+    with LogixDriver(PLC_IP) as plc:
+        while not(stop_event and stop_event.is_set()):
+            gate_open = read_single(plc, TAG_GATE_OPEN)
+            if gate_open:
                 teach_mode = read_single(plc, TAG_TEACH_MODE)
                 num_dets = get_detections_count()
                 num_ids = len(curr_in)
@@ -71,10 +68,12 @@ def main(stop_event = None):
                 #print(f"number of detections: {num_dets}")
                 #print(f"number of ids: {num_ids}")
 
-                if keyboard.is_pressed("ctrl + d"):
-                    num_dets = int(input("[DEBUG] how many dets?: "))
-                    num_ids = int(input("[DEBUG] how many ids?: "))
-                    
+                #test case generator
+                if keyboard.is_pressed("d"):
+                    num_dets = int(input("[TEST] how many dets?: "))
+                    num_ids = int(input("[TEST] how many ids?: "))
+                    teach_mode = bool(input("[TEST] teach mode (True/False)?: "))
+
                 alarm = loto_logic(gate_open, teach_mode, num_dets, num_ids)
                 #time.sleep(3)  
                 #print(f"alarm: {alarm}")
@@ -85,9 +84,10 @@ def main(stop_event = None):
                     write_single(plc, TAG_LOTO_ALARM, alarm)
                     num_alarms = 0
                     print(f"loto alarm written⚠️")
-                    time.sleep(2)
+                    
 
                 time.sleep(0.1)
+        print("exiting alarm_seq...")
 
 
 if __name__ == "__main__":

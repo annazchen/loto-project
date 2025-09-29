@@ -30,7 +30,7 @@ if __name__ == "__main__":
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nstopping all threads :>...")
+        print("\nstopping all threads...")
         stop_event.set()
 
     # Keep the main thread alive
