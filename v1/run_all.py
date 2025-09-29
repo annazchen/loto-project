@@ -1,7 +1,7 @@
 import threading
 import people_detect
 import rf2
-import dummy
+from plc_work import alarm_seq
 import time
 
 def start_people(stop_event):
@@ -10,8 +10,8 @@ def start_people(stop_event):
 def start_rf2(stop_event):
     rf2.main(stop_event)            
 
-def start_dummy(stop_event):
-    dummy.main(stop_event)        
+def start_plc(stop_event):
+    alarm_seq.main(stop_event)        
 
 if __name__ == "__main__":
     stop_event = threading.Event()
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     # Launch all 3 in parallel
     threads.append(threading.Thread(target=start_people, args = (stop_event,), daemon=True))
     threads.append(threading.Thread(target=start_rf2, args = (stop_event,), daemon=True))
-    threads.append(threading.Thread(target=start_dummy, args = (stop_event,), daemon=True))
+    threads.append(threading.Thread(target=start_plc, args = (stop_event,), daemon=True))
 
     for t in threads:
         t.start()

@@ -5,7 +5,6 @@ import argparse
 import sys
 import keyboard
 import people_detect
-import threading
 
 #command to be sent to read epc values
 SEND_CMD = bytes.fromhex("BB 00 22 00 00 22 7E")
@@ -131,13 +130,13 @@ def read_loop(ser : serial.Serial):
                         #print("found epc: ", epc)
                     #debug
                     #print(epc) 
-            if (time.time() - time0) >= 5:
-                print(f"number of people inside: {len(people_detect.detections)}") 
-                print(f"number of tags tapped in: {len(curr_in)}")
+            #if (time.time() - time0) >= 5:
+            #    print(f"number of people inside: {len(people_detect.detections)}") 
+            #    print(f"number of tags tapped in: {len(curr_in)}")
                 #for funsies
                 #if num_person > len(curr_in):
                 #    print("⚠️ loto violation!⚠️")
-                time0 = time.time()
+            #    time0 = time.time()
 
             time.sleep(0.1)
 

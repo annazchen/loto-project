@@ -3,8 +3,8 @@ import cv2
 import time
 import numpy as np
 import os
+from blob_path import blob_path
 
-blob_path = r"\Users\Anna.Chen\.cache\blobconverter\best_openvino_2022.1_10shave.blob"
 
 num_detects = 0
 
@@ -208,9 +208,9 @@ def main(stop_event = None):
                     #debug: ensure detections are detecting
                     #print(f"[DEBUG] got {len(detections)} detections")
 
-                    for d in detections:
-                        print(f" - {labels[d.label]} ({d.confidence:.2f}) "
-                            f"at [{d.xmin:.2f}, {d.ymin:.2f}, {d.xmax:.2f}, {d.ymax:.2f}]")
+                    #for d in detections:
+                        #print(f" - {labels[d.label]} ({d.confidence:.2f}) "
+                        #    f"at [{d.xmin:.2f}, {d.ymin:.2f}, {d.xmax:.2f}, {d.ymax:.2f}]")
                     #remove oldest detection frame    
                     if len(det_queue) > max_q:
                         det_queue.pop(0)

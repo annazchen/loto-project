@@ -1,13 +1,15 @@
 from pycomm3 import LogixDriver
-from ip import PLC_IP
+from .ip import PLC_IP
 from rf2 import curr_in
-from people_detect import detections
+from people_detect import get_detections_count
 import time
 
 plc_fail = 0
-TAG_GATE_OPEN = "Cel_060_Gate_Open"
-TAG_TEACH_MODE = "Cel_060_Teach_Mode"
-TAG_LOTO_ALARM = "Cel_060_LOTO_Alarm"
+num_alarms = 0
+
+TAG_GATE_OPEN = "Cell_060_Gate_Open"
+TAG_TEACH_MODE = "Cell_060_Teach_Mode"
+TAG_LOTO_ALARM = "Cell_060_LOTO_Alarm"
 
 
 
@@ -20,6 +22,7 @@ def read_single(plc, tag_name):
         print(f"PLC read error for tag '{tag_name}': ", e)
         plc_fail += 1
         return False #return safe value
+    
         
 #safe write single
 def write_single(plc, tag_name, tag_value):
@@ -50,23 +53,33 @@ def loto_logic(gate_open, teach_mode, num_dets, num_ids):
 
     
 
-def main():
+def main(stop_event = None):
     with LogixDriver(PLC_IP) as plc:
-        while True:
-            gate_open = read_single(plc, TAG_GATE_OPEN)
-            teach_mode = read_single(plc, TAG_TEACH_MODE)
+        while not(stop_event and stop_event.is_set()):
+            while True:
+                gate_open = read_single(plc, TAG_GATE_OPEN)
+                teach_mode = read_single(plc, TAG_TEACH_MODE)
+                num_dets = get_detections_count()
+                num_ids = len(curr_in)
 
-            num_dets = len(detections)
-            #debug
-            print(f"number of detections: {num_dets}")
-            num_ids = len(curr_in)
-            #debug
-            print(f"number of ids: {num_ids}")
+                #debug
+                #print(gate_open)
+                #print(f"number of detections: {num_dets}")
+                #print(f"number of ids: {num_ids}")
 
-            alarm = loto_logic(gate_open, teach_mode, num_dets, num_ids)
-            write_single(plc, TAG_LOTO_ALARM, alarm)
-            print(f"loto alarm written⚠️")
+                alarm = loto_logic(gate_open, teach_mode, num_dets, num_ids)
+                #time.sleep(3)  
+                #print(f"alarm: {alarm}")
+            
+                if alarm:
+                    num_alarms += 1
+                    if num_alarms >= 3:  
+                        write_single(plc, TAG_LOTO_ALARM, alarm)
+                        num_alarms = 0
+                        print(f"loto alarm written⚠️")
+                        time.sleep(2)
 
+                time.sleep(0.1)
             time.sleep(0.1)
 
 if __name__ == "__main__":
