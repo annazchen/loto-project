@@ -70,19 +70,20 @@ def parse_epc(response: bytes):
 
 #6 detections = 1 read
 def handle_detection(epc_bytes : bytes):
+    global detection_counts
     epc_hex = bytes_to_hex(epc_bytes)
     detection_counts[epc_hex] = detection_counts.get(epc_hex, 0) + 1
 
     if detection_counts[epc_hex] >= 6:
-        detection_counts = 0
+        detection_counts[epc_hex] = 0
         if epc_hex not in curr_in:
+            action = "tap in"
             curr_in.append(epc_hex)
             log_table.append({
                 "epc" : epc_hex,
                 "action" : action,
                 "timestamp" : time.strftime("%Y-%m-%d %H:%M:%S")
             })
-            action = "tap in"
             t0 = time.time()
             last_seen[epc_hex] = t0
             #debug
@@ -90,50 +91,26 @@ def handle_detection(epc_bytes : bytes):
         if epc_hex in curr_in:
             update_curr_in()
 
-#last working on this!
+
 def update_curr_in():
     t0 = time.time()
-    expired = [epc for epc, timestamp in last_seen.items() if t0 - timestamp ]
+    expired = [epc for epc, timestamp in last_seen.items() if t0 - timestamp > TIMEOUT]
     for epc in expired:
+        action = "time out"
         log_table.append({
             "epc" : epc, 
-
+            "action" : action,
+            "timestamp" : time.strftime("%Y-%m-%d %H:%M:%S")
         })
         last_seen.pop(epc, None)
     global curr_in
     curr_in = list(last_seen.keys())
 
-
-#SLATED FOR REMOVAL FROM handle_detections
-    '''if detection_counts[epc_hex] >= 6:
-        detection_counts[epc_hex] = 0
-        read_counts[epc_hex] = read_counts.get(epc_hex, 0) + 1
-        read_num = read_counts[epc_hex]
-
-        if epc_hex not in curr_in:
-            curr_in.append(epc_hex)
-        else:
-            curr_in.remove(epc_hex)
-
-        action = "tap in" if read_num % 2 else "tap out"
-
-        log_table.append({
-            "read #" : read_num,
-            "epc" : epc_hex,
-            "action" : action,
-            "timestamp" : time.strftime("%Y-%m-%d %H:%M:%S")
-        })
-
-        #debug
-        print(f"[{action}] EPC: {epc_hex} (Read #{read_num})")'''
-
-
-#
 #read log table
 def read_table():
     print("\n--- log table ---")
     for entry in log_table:
-        print(f"{entry['timestamp']} | {entry['epc']} | {entry['action']} | {entry['read #']}")
+        print(f"{entry['timestamp']} | {entry['epc']} | {entry['action']}s")
     print("-----------------\n")
 
 #identify based on key and lock id
@@ -158,6 +135,7 @@ def read_loop(ser : serial.Serial, stop_event):
             response = ser.read_all()
 
             if response:
+                #debug
                 #print("raw response", bytes_to_hex(response))
 
                 #confirms that its the right type of id
@@ -167,7 +145,8 @@ def read_loop(ser : serial.Serial, stop_event):
                     epc_bytes = response[8:-2]
                     if epc_bytes.startswith(b"\xE2"):
                         handle_detection(epc_bytes)
-                        
+            update_curr_in()
+            print("active tags: ", curr_in)
 
             time.sleep(0.1)
 
