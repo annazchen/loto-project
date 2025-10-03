@@ -13,17 +13,29 @@ TIMEOUT = 3
 #log table
 log_table = []
 #detection counter
-detection_counts = {}
-#read counter (read_counts : )
-read_counts = {}
+#detection_counts = {}
 #stores latest time an epc was read
 last_seen = {}
+#stores epc pairs that are directory keys, and time of when pair is detected
+key_seen = {}
+#stores users that have successfully removed key before timer
+valid_usrs = {}
+#loto validation tracker
+loto_check = {}
+#loto violation counter
+loto_bad = []
 #active tags inside
 curr_in = []
 
-directory = {
+directory = { #(lock epc, key epc) : name
     ('E2 80 6A 96 00 00 50 21 41 49 E1 92 3B A3', 'E2 80 6A 96 00 00 40 21 41 41 49 8B 9F 49') : "Anna Chen"
     }
+
+def list_keys(dict):
+    list_dict = []
+    for key in dict:
+        list_dict.append(key)
+    return list_dict
 
 def detect_ports():
     ports = list_ports.comports()
@@ -68,49 +80,70 @@ def parse_epc(response: bytes):
         if epc_bytes:
             return bytes_to_hex(epc_bytes)
 
+#removes epcs that reach timeout limit in last_seen
+def epc_timeout(time):
+    global last_seen
+    expired = [epc for epc, timestamp in last_seen.items() if time - timestamp >= TIMEOUT]
+    for epc in expired:
+        last_seen.pop(epc, None)
+    
 #6 detections = 1 read
 def handle_detection(epc_bytes : bytes):
     global detection_counts
     epc_hex = bytes_to_hex(epc_bytes)
-    detection_counts[epc_hex] = detection_counts.get(epc_hex, 0) + 1
+    now = time.time()
+    #detection_counts[epc_hex] = detection_counts.get(epc_hex, 0) + 1
+    #if detection_counts[epc_hex] >= 3:
+    #    detection_counts[epc_hex] = 0
+    last_seen[epc_hex] = now
+    #if epc_hex not in last_seen:
+     #   t0 = time.time()
+      #  last_seen[epc_hex] = t0
+        #debug
+        
+    #if epc_hex in last_seen:
+    update_curr_in()
+    print(f"EPC: {epc_hex}")
 
-    if detection_counts[epc_hex] >= 6:
-        detection_counts[epc_hex] = 0
-        if epc_hex not in curr_in:
-            action = "tap in"
-            curr_in.append(epc_hex)
-            log_table.append({
-                "epc" : epc_hex,
-                "action" : action,
-                "timestamp" : time.strftime("%Y-%m-%d %H:%M:%S")
-            })
-            t0 = time.time()
-            last_seen[epc_hex] = t0
-            #debug
-            print(f"[{action}] EPC: {epc_hex}")
-        if epc_hex in curr_in:
-            update_curr_in()
-
-
+#keeps curr_in items until TIMEOUT val
 def update_curr_in():
-    t0 = time.time()
-    expired = [epc for epc, timestamp in last_seen.items() if t0 - timestamp > TIMEOUT]
-    for epc in expired:
-        action = "time out"
-        log_table.append({
-            "epc" : epc, 
-            "action" : action,
-            "timestamp" : time.strftime("%Y-%m-%d %H:%M:%S")
-        })
-        last_seen.pop(epc, None)
-    global curr_in
-    curr_in = list(last_seen.keys())
+    testing = {}
+    t1 = time.time()
+    global key_seen
+    global loto_bad
+    epc_timeout(t1)
+    for pair, name in directory.items():
+        if all(epc in last_seen for epc in pair):
+            if name not in curr_in:
+                key_seen[pair] = t1
+                curr_in.append(name)
+                #debug
+                print(f"{directory[pair]} is inside.")
+    for pair, t in key_seen.items():
+        if (t1 - t) >= 6:
+            testing[pair] = t
+    for pair, t in testing.items():
+        if pair[1] in last_seen:
+            #debug
+            print(f"loto violation by {directory[pair]}! key in lock!")
+            loto_bad.append(directory[pair])
+        else:
+            valid_usrs[pair] = t
+    for usrs, t in valid_usrs.items():
+        if usrs[0] not in last_seen:
+            curr_in.remove(directory[usrs])
+            del key_seen[pair]
+
+def handle_loto():
+    if len(loto_bad) > 0:
+        return True
+    return False
 
 #read log table
 def read_table():
     print("\n--- log table ---")
     for entry in log_table:
-        print(f"{entry['timestamp']} | {entry['epc']} | {entry['action']}s")
+        print(f"{entry['timestamp']} | {entry['epc']} | {entry['action']}")
     print("-----------------\n")
 
 #identify based on key and lock id
@@ -145,9 +178,10 @@ def read_loop(ser : serial.Serial, stop_event):
                     epc_bytes = response[8:-2]
                     if epc_bytes.startswith(b"\xE2"):
                         handle_detection(epc_bytes)
+            
+            epc_timeout(time.time())
             update_curr_in()
-            print("active tags: ", curr_in)
-
+            print("active tags: ", list_keys(last_seen))
             time.sleep(0.1)
 
     except KeyboardInterrupt:
