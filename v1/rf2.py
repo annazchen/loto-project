@@ -70,18 +70,34 @@ def open_serial(port : str, baud : int, timeout : float = 0.5) -> serial.Serial:
 def bytes_to_hex(byte: bytes):
     return byte.hex(" ").upper()
 
+def extract_frames(buffer: bytes):
+    frames = []
+    start = 0
+
+    while True:
+        start = buffer.find(b"\xBB", start)
+        if start == -1:
+            break
+        end = buffer.find(b"\x7E", start)
+        if end == -1:
+            break
+        frame = buffer[start : end + 1]
+        frames.append(frame)
+        start = end + 1
+    return frames
+
 
 #expected framing of raw response: start with 0xBB, end with 0x7E
-def parse_epc(response: bytes):
-    if not response or not(response.startswith(b"\xBB") and response.endswith(b"\x7E")):
+def parse_epc(frame : bytes):
+    if not (frame.startswith(b"\xBB") and frame.endswith(b"\x7E")):
         return None
-    else:
-        epc_bytes = response[8:-2]
-        if epc_bytes:
-            return bytes_to_hex(epc_bytes)
+    epc_bytes = frame[8 : -2]
+    if len(epc_bytes) == 14 and epc_bytes.startswith(b"\xE2"):
+        return epc_bytes.hex(" ").upper()
+    return None
 
 #removes epcs that reach timeout limit in last_seen
-def epc_timeout(time):
+def epc_timeout(time): 
     global last_seen
     expired = [epc for epc, timestamp in last_seen.items() if time - timestamp >= TIMEOUT]
     for epc in expired:
@@ -105,12 +121,13 @@ def handle_detection(epc_bytes : bytes):
     update_curr_in()
     print(f"EPC: {epc_hex}")
 
-#keeps curr_in items until TIMEOUT val
+#
 def update_curr_in():
     testing = {}
     t1 = time.time()
     global key_seen
     global loto_bad
+    global curr_in
     epc_timeout(t1)
     for pair, name in directory.items():
         if all(epc in last_seen for epc in pair):
@@ -118,7 +135,7 @@ def update_curr_in():
                 key_seen[pair] = t1
                 curr_in.append(name)
                 #debug
-                print(f"{directory[pair]} is inside.")
+                print(f"{name} is inside.")
     for pair, t in key_seen.items():
         if (t1 - t) >= 6:
             testing[pair] = t
@@ -172,12 +189,12 @@ def read_loop(ser : serial.Serial, stop_event):
                 #print("raw response", bytes_to_hex(response))
 
                 #confirms that its the right type of id
-                epc = parse_epc(response)
+                frames = extract_frames(response)
+                for f in frames:
+                    epc = parse_epc(f)
                 if epc:
                     #split to important bytes
-                    epc_bytes = response[8:-2]
-                    if epc_bytes.startswith(b"\xE2"):
-                        handle_detection(epc_bytes)
+                    handle_detection(bytes.fromhex(epc.replace(" ", "")))
             
             epc_timeout(time.time())
             update_curr_in()
